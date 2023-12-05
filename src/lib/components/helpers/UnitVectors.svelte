@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { twoD } from '$lib/2d'
 	import { Matrix, Vec } from '$lib/calculations'
 	import Line from './Line.svelte'
 	export let opacity = 1
@@ -16,11 +17,13 @@
 	text={'j'}
 	{opacity}
 	points={[Vec.Zero(3), transform.times(Vec.fromNumberArray([0, 1, 0]).toMatrix()).toVec()]}
-	color={grayscale ? '#ffffff' : "#3dfe00"}
+	color={grayscale ? '#ffffff' : '#3dfe00'}
 />
-<Line
-	text={'k'}
-	{opacity}
-	points={[Vec.Zero(3), transform.times(Vec.fromNumberArray([0, 0, 1]).toMatrix()).toVec()]}
-	color={grayscale ? '#ffffff' : "#003dfe"}
-/>
+{#if !$twoD}
+	<Line
+		text={'k'}
+		{opacity}
+		points={[Vec.Zero(3), transform.times(Vec.fromNumberArray([0, 0, 1]).toMatrix()).toVec()]}
+		color={grayscale ? '#ffffff' : '#003dfe'}
+	/>
+{/if}

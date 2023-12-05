@@ -1,4 +1,4 @@
-import { chunk, every, times, zipWith } from 'lodash-es'
+import { chunk, every, indexOf, min, times, zipWith } from 'lodash-es'
 import { sum, Num } from './complex'
 
 export class Matrix {
@@ -60,27 +60,44 @@ export class Matrix {
 		}
 	}
 
-    sameDimensionsAs(mtx : Matrix) {
-        return mtx.cols === this.cols && mtx.rows === this.rows
-    }
+	sameDimensionsAs(mtx: Matrix) {
+		return mtx.cols === this.cols && mtx.rows === this.rows
+	}
 
-    add(mtx : Matrix) {
-        if (!this.sameDimensionsAs(mtx)) throw new Error("Dimensions mismatch -- cannot add")
-        const mtxArr = mtx.numberArray()
-        const thisArr = this.numberArray()
-        const newArr = zipWith(mtxArr, thisArr, (a, b) => a.add(b))
-        return Matrix.fromNumberArray(newArr, this.cols)
-    }
+	add(mtx: Matrix) {
+		if (!this.sameDimensionsAs(mtx)) throw new Error('Dimensions mismatch -- cannot add')
+		const mtxArr = mtx.numberArray()
+		const thisArr = this.numberArray()
+		const newArr = zipWith(mtxArr, thisArr, (a, b) => a.add(b))
+		return Matrix.fromNumberArray(newArr, this.cols)
+	}
 
-    get size() {
-        return `${this.rows}x${this.cols}`
-    }
+	get size() {
+		return `${this.rows}x${this.cols}`
+	}
+
+	get inverse() {
+		if (!this.square) throw new Error(`Attempting to get an inverse of a non-square matrix`)
+		const det = this.determinant
+		if (det.equalTo(0)) throw new Error(`Matrix is not invertible, determinant is 0`)
+
+		const columns: Vec[] = []
+		this.#cycleCols((col) => {
+			const columnarValues: Num[] = []
+			this.#cycleRows((row) => {
+				const minor = this.minor(row, col)
+				const cofactor = Matrix.cofactor(row, col)
+				columnarValues.push(minor.determinant.times(cofactor))
+			})
+			columns.push(new Vec(columnarValues))
+		})
+		const mtx = new Matrix(columns)
+		return mtx.transpose.scale(det.inverse)
+	}
 
 	times(matrix: Matrix) {
 		if (matrix.rows !== this.cols)
-			throw new Error(
-				`Cannot multiply matrices. Target matrix has ${matrix.rows} rows but this has ${this.cols} cols`
-			)
+			throw new Error(`Cannot multiply matrices. Left is ${this.size} but right is ${matrix.size}`)
 		const targetRows = this.rows
 		const targetCols = matrix.cols
 		return new Matrix(
@@ -98,11 +115,19 @@ export class Matrix {
 		)
 	}
 
-    scale(num : Num | number) {
-        const mult = Num.Create(num)
-        const newArray = this.numberArray().map(t => t.times(mult))
-        return Matrix.fromNumberArray(newArray, this.cols)
-    }
+	pow(num: number): Matrix {
+		if (!this.square) throw new Error(`Can only raise to the power of a square matrix`)
+		if (Math.floor(num) !== num) throw new Error(`Cannot raise matrix to the power of a fraction`)
+		if (num === 0) return Matrix.identity(this.rows)
+		if (num < 0) return this.pow(Math.abs(num)).inverse
+		return this.times(this.pow(num - 1))
+	}
+
+	scale(num: Num | number) {
+		const mult = Num.Create(num)
+		const newArray = this.numberArray().map((t) => t.times(mult))
+		return Matrix.fromNumberArray(newArray, this.cols)
+	}
 
 	getRow(row: number) {
 		if (row > this.m || row < 1) throw new Error(`Row ${row} out of range ${1} to ${this.m}`)
@@ -140,7 +165,6 @@ export class Matrix {
 		const newVecs = this.vecs.map((vec) => vec.removeDimension(row))
 		return new Matrix(newVecs)
 	}
-    
 
 	minor(row: number, col: number) {
 		return this.removeRow(row).removeCol(col)
@@ -252,6 +276,47 @@ export class Matrix {
 			throw new Error(`Not all lengths are equal, got ${numbers.length} split in ${colLength}`)
 		return new Matrix(chunks.map((chunk) => new Vec(chunk)))
 	}
+
+	#cycleRows<T>(row: (row: number) => T): T[] {
+		return times(this.rows, (i) => row(i + 1))
+	}
+
+	#cycleCols<T>(col: (col: number) => T): T[] {
+		return times(this.cols, (i) => col(i + 1))
+	}
+
+	#cycleAllElements<T>(callback: (row: number, col: number) => T): T[] {
+		return this.#cycleRows((row) => {
+			return this.#cycleCols((col) => {
+				return callback(row, col)
+			})
+		}).flatMap((v) => v)
+	}
+	get isUpperTriangular() {
+		const nums: Num[] = []
+		this.#cycleAllElements((row, col) => {
+			if (row > col) nums.push(this.get(row, col))
+		})
+		if (nums.length === 0) throw new Error(`???`)
+		return nums.every((num) => num.equalTo(0))
+	}
+
+	get isLowerTriangular() {
+		const nums: Num[] = []
+		this.#cycleAllElements((row, col) => {
+			if (col > row) nums.push(this.get(row, col))
+		})
+		if (nums.length === 0) throw new Error(`???`)
+		return nums.every((num) => num.equalTo(0))
+	}
+	get isDiagonal() {
+		const nums: Num[] = []
+		this.#cycleAllElements((row, col) => {
+			if (col != row) nums.push(this.get(row, col))
+		})
+		if (nums.length === 0) throw new Error(`???`)
+		return nums.every((num) => num.equalTo(0))
+	}
 }
 
 export class Vec {
@@ -264,30 +329,32 @@ export class Vec {
 		return this.values.map((num) => num.re)
 	}
 
-    /**
-     * component 1 = first component
-     */
-    modifyComponent(component : number, newNum : number | Num) {
-        const num = Num.Create(newNum)
-        if (this.dimensions < component) throw new RangeError("Attempted to modify component too far")
-        if (component <= 0) throw new RangeError(`Component too low, must be 1 or greater`)
-        const newVals = [...this.values]
-        newVals[component-1] = num
-        return new Vec(newVals)
-    }
+	/**
+	 * component 1 = first component
+	 */
+	modifyComponent(component: number, newNum: number | Num) {
+		const num = Num.Create(newNum)
+		if (this.dimensions < component) throw new RangeError('Attempted to modify component too far')
+		if (component <= 0) throw new RangeError(`Component too low, must be 1 or greater`)
+		const newVals = [...this.values]
+		newVals[component - 1] = num
+		return new Vec(newVals)
+	}
 
-    cross(vec : Vec) {
-        if (this.dimensions !== 3) throw new Error(`Cross multiplication is only for 3d vectors, this one is ${this.dimensions}`)
-        if (vec.dimensions !== 3) throw new Error(`Cross multiplication is only for 3d vectors, target is ${vec.dimensions}`)
+	cross(vec: Vec) {
+		if (this.dimensions !== 3)
+			throw new Error(`Cross multiplication is only for 3d vectors, this one is ${this.dimensions}`)
+		if (vec.dimensions !== 3)
+			throw new Error(`Cross multiplication is only for 3d vectors, target is ${vec.dimensions}`)
 
-        // Create a matrix of these three
-        const mtx = new Matrix([Vec.fromNumberArray([0,0,0]), this, vec]).transpose
-        return new Vec([
-            mtx.minor(1,1).determinant,
-            mtx.minor(1,2).determinant.scale(-1),
-            mtx.minor(1,3).determinant
-        ])
-    }
+		// Create a matrix of these three
+		const mtx = new Matrix([Vec.fromNumberArray([0, 0, 0]), this, vec]).transpose
+		return new Vec([
+			mtx.minor(1, 1).determinant,
+			mtx.minor(1, 2).determinant.scale(-1),
+			mtx.minor(1, 3).determinant
+		])
+	}
 
 	add(vec: Vec) {
 		if (vec.dimensions !== this.dimensions)
@@ -299,9 +366,9 @@ export class Vec {
 		)
 	}
 
-    subtract(vec : Vec) {
-        return this.add(vec.scale(-1))
-    }
+	subtract(vec: Vec) {
+		return this.add(vec.scale(-1))
+	}
 
 	scale(scalar: Num | number) {
 		return new Vec(
@@ -313,6 +380,13 @@ export class Vec {
 
 	static Zero(dimensions: number) {
 		return new Vec(new Array(dimensions).fill(new Num()))
+	}
+
+	get toThreeDimensions() : Vec {
+		if (this.dimensions === 3) return this
+		if (this.dimensions === 2) return new Vec([...this.values, Num.Zero()])
+		if (this.dimensions === 1) return new Vec([...this.values, Num.Zero(),Num.Zero()])
+		throw new Error(`Attempted to upgrade vector to three dimesnions but it was not a 1, 2, or 3 dimensional vector. It had ${this.dimensions} dimensions.`)
 	}
 
 	toMatrix() {
@@ -339,6 +413,21 @@ export class Vec {
 		return new Vec(newArr)
 	}
 
+	toIntegerVec() {
+		return vecInteger(this)
+	}
+
+	equals(vec: Vec) {
+		if (vec.dimensions !== this.dimensions) return false
+		return vec.values.map((num, i) => this.values[i].equalToTolerance(num)).every(t => t === true)
+	}
+
+	isSamedirectionAs(vec : Vec) {
+		const thisNormal = this.normal
+		const vecNormal = vec.normal
+		return (thisNormal.equals(vecNormal) || thisNormal.scale(-1).equals(vecNormal))
+	}
+
 	get i() {
 		return this.component(1)
 	}
@@ -349,12 +438,28 @@ export class Vec {
 		return this.component(3)
 	}
 
+	angleFrom(b: Vec) {
+		return angleBetween(this, b)
+	}
+
 	static fromNumberArray(numbers: number[]) {
 		return new Vec(numbers.map((num) => new Num(num)))
 	}
 
 	get length() {
 		return sum(...this.values.map((num) => num.pow(2))).root
+	}
+
+	toString() {
+		return `[${this.values.map((v) => v.toString()).join()}]`
+	}
+
+	get normal() {
+		return normal(this)
+	}
+
+	print() {
+		console.log(this.toString())
 	}
 }
 
@@ -400,6 +505,31 @@ export function dot(a: Matrix | Vec, b: Matrix | Vec) {
 //     }
 // }
 
+/**
+ * Only returns the real component
+ * @param a
+ * @param b
+ * @returns
+ */
+function angleBetween(a: Vec, b: Vec): Num {
+	if (a.dimensions !== b.dimensions)
+		throw new Error(`Vectors are of a different order ${a.dimensions} vs ${b.dimensions}`)
+	/**
+	 * A dot B = |A| |B| cos(theta)
+	 * cos(theta) = (A dot B)/(|A| * |B|)
+	 * theta = asin((A dot B)/(|A| * |B|))
+	 */
+	const denominator = a.length.times(b.length)
+	if (denominator.isZero) throw new Error(`One of the vectors is a zero vector!`)
+	return new Num(Math.acos(dot(a, b).divideBy(denominator).re))
+}
+
+function normal(a: Vec): Vec {
+	const len = a.length
+	if (len.isZero) throw new Error(`Vector must have a length in order to normalize`)
+	return a.scale(len.inverse)
+}
+
 export function matrixTweener(current: Matrix, target: Matrix) {
 	if (current.cols !== target.cols)
 		throw new Error('Matrix and current matrix have different column numbers')
@@ -420,6 +550,33 @@ export function matrixTweener(current: Matrix, target: Matrix) {
 		}
 		return Matrix.fromNumberArray(nums, colSplit)
 	}
+}
+
+/**
+ * Scales the vec so that it has all integer components.
+ * Also takes imaginary into account.
+ *
+ * Returns the original vec otherwise
+ * @param vec
+ * @param limit
+ */
+function vecInteger(vec: Vec, limit = 100): Vec | null {
+	// Scale the vector such that the smallest vector equals one
+	const nonZeroNums = vec.values.flatMap((num) => [num.re, num.im]).filter((num) => num !== 0)
+	if (nonZeroNums.length === 0) return vec
+
+	// Will be non-zero
+	const smallestNumber = min(nonZeroNums)
+	if (smallestNumber === undefined) throw new Error(`Smallest number was not defined in vector`)
+
+	// We will scale the vec so the smallest number is 1
+	const newVec = vec.scale(1 / smallestNumber)
+	// console.log(newVec.values)
+	for (let i = 1; i < limit; i++) {
+		const processed = newVec.scale(i)
+		if (processed.values.every((num) => num.isInteger())) return processed
+	}
+	return null
 }
 
 // @ts-ignore

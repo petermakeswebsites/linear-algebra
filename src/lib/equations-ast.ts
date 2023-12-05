@@ -1,4 +1,4 @@
-import { times } from 'lodash-es'
+import { last, times } from 'lodash-es'
 
 export type AstParseNode =
 	| AstAdd
@@ -6,10 +6,12 @@ export type AstParseNode =
 	| AstSub
 	| AstSemi
 	| AstMult
+	| AstDivide
 	| AstComma
 	| AstParenthesis
 	| AstBracket
-export type AstNode = AstParseNode | AstToken
+	| AstPow
+export type AstNode = AstParseNode | AstToken | AstFunction
 export type AstAdd = {
 	lhs: AstNode
 	rhs: AstNode
@@ -25,7 +27,15 @@ export type AstAdd = {
  */
 export type AstToken = {
 	token: string
+	negative: boolean
 	name: 'token'
+}
+
+export type AstFunction = {
+	name: 'function'
+	function: string
+	negative: boolean
+	args: AstComma
 }
 
 export type AstSub = {
@@ -49,6 +59,20 @@ export type AstMult = {
 	name: 'mult'
 }
 
+export type AstDivide = {
+	lhs: AstNode
+	rhs: AstNode
+	operation: 'divide'
+	name: 'divide'
+}
+
+export type AstPow = {
+	lhs: AstNode
+	rhs: AstNode
+	operation: 'pow'
+	name: 'pow'
+}
+
 export type AstParenthesis = {
 	inner: AstNode
 	container: 'parenthesis'
@@ -62,11 +86,14 @@ export type AstBracket = {
 }
 
 export type AstSemi = {
-	list: AstNode[]
+	list: AstComma[]
 	separator: 'semicolon'
 	name: 'semicolon'
 }
 
+/**
+ * Comma list
+ */
 export type AstComma = {
 	list: AstNode[]
 	separator: 'comma'
@@ -96,9 +123,19 @@ const Symbols: Record<AstParseNode['name'], AstSymbol> = {
 		symbols: ['-'],
 		type: 'operate'
 	},
+	pow: {
+		name: 'pow',
+		symbols: ['^'],
+		type: 'operate'
+	},
 	mult: {
 		name: 'mult',
 		symbols: ['*'],
+		type: 'operate'
+	},
+	divide: {
+		name: 'divide',
+		symbols: ['/'],
 		type: 'operate'
 	},
 	dot: {
@@ -136,261 +173,246 @@ const symbolList = new Map<string, AstSymbol>(
 	})
 )
 
+/**
+ * Basically sometimes the minus sign
+ * should be considered a token, and other times
+ * it should be considered an operator
+ */
+function minusIsToken(beforeMinus: string): boolean {
+	const isToken = ['-', '/', '*', '@', '+', '(', '', '^']
+	return isToken.includes(beforeMinus)
+}
+
 export function astMaker(eq: string): AstNode {
 	eq = eq.trim()
-	let thisToken = ''
-	const accumulatedNodes: AstNode[] = []
+	if (!eq.length) throw new Error(`Expecting token but was blank`)
 
-	for (let i = 0; i < eq.length; i++) {
-		const char = eq[i]
-		const restOfEquation = eq.slice(i + 1)
-
-		const symbolised = symbolList.get(char)
-		// console.log({ char, symbolised })
-		if (symbolised === undefined) {
-			thisToken += char
+	// First check to see if we've got addition / subtraction
+	const addsub = findNextNotInBracket(eq, ['+', '-'])
+	if (addsub !== null) {
+		if (addsub.char === '+') {
+			return {
+				name: 'add',
+				operation: 'add',
+				lhs: astMaker(addsub.eq),
+				rhs: astMaker(addsub.remainder)
+			} satisfies AstAdd
 		} else {
-			if (thisToken.length) {
-				// Token ends when we meet it
-				const newToken: AstToken = {
-					token: thisToken,
-					name: 'token'
-				}
-				thisToken = ''
-				accumulatedNodes.push(newToken)
-			}
-
-			if (symbolised.type === 'wrap') {
-				const { node, len } = processWrap(symbolised, restOfEquation)
-				i = len
-				accumulatedNodes.push(node)
-			} else if (symbolised.type === 'operate') {
-				console.log('Operator found')
-				if (symbolised.name === 'add' || symbolised.name === 'sub') {
-					if (accumulatedNodes.length === 0)
-						throw new Error(`${symbolised.symbols[0]} detected without anything before from it.`)
-					if (accumulatedNodes.length > 1)
-						throw new Error(
-							`${symbolised.symbols[0]} detected, but there was more than 1 node previous from it. This should be impossible!`
-						)
-					return {
-						name: symbolised.name,
-						lhs: accumulatedNodes[0],
-						rhs: astMaker(restOfEquation),
-						// @ts-ignore I don't know why it's throwing an error here
-						operation: symbolised.name
-					}
-				} else if (symbolised.name === "dot") {
-					throw new Error('Not implemented yet for symbol')
-				}
-			}
-		}
-	}
-
-	if (thisToken.length) {
-		return {
-			token: thisToken,
-			name: 'token'
-		}
-	}
-
-	if (accumulatedNodes.length === 1) {
-		return accumulatedNodes[0]
-	}
-
-	throw new Error(`Reached the end of AST with no token or anything`)
-}
-
-function processWrap(
-	symbolised: AstSymbol,
-	restOfEquation: string
-): {
-	node: AstNode
-	len: number
-} {
-	if (symbolised.name === 'parenthesis') {
-		// Find the end of this bracket
-		return astContainer(restOfEquation, symbolised.symbols[0], symbolised.symbols[1])
-	} else if (symbolised.name === 'bracket') {
-		return bracketBreaker(restOfEquation)
-	} else {
-		throw new Error(`Symbolised wrap type name not recognise: ${symbolised.name}`)
-	}
-}
-
-function astContainer(
-	restOfEq: string,
-	openingSymbol: string,
-	closingSymbol: string
-): {
-	node: AstNode
-	len: number
-} {
-	let containerLayerDepth = 0
-	for (let i = 0; i < restOfEq.length; i++) {
-		const innerChar = restOfEq[i]
-		if (innerChar === openingSymbol) {
-			containerLayerDepth++
-		} else if (innerChar === closingSymbol) {
-			if (containerLayerDepth === 0) {
+			const lastCharacter = addsub.eq.slice(-1)
+			const isToken = minusIsToken(lastCharacter)
+			// console.log({isToken})
+			if (!isToken)
 				return {
-					node: astMaker(restOfEq.slice(0, i)),
-					len: i + 1
-				}
-			} else {
-				containerLayerDepth--
-			}
+					name: 'sub',
+					operation: 'sub',
+					lhs: astMaker(addsub.eq),
+					rhs: astMaker(addsub.remainder)
+				} satisfies AstSub
 		}
 	}
-	throw new Error(`Equation ${restOfEq} did not have a closing symbol: ${closingSymbol}`)
+
+	const mult = findNextNotInBracket(eq, ['@', '*', '/'])
+	if (mult !== null) {
+		if (mult.char === '@') {
+			return {
+				name: 'dot',
+				operation: 'dot',
+				lhs: astMaker(mult.eq),
+				rhs: astMaker(mult.remainder)
+			} satisfies AstDot
+
+		} else if (mult.char === '/') {
+			return {
+				name: 'divide',
+				operation: 'divide',
+				lhs: astMaker(mult.eq),
+				rhs: astMaker(mult.remainder)
+			} satisfies AstDivide
+		} else {
+			return {
+				name: 'mult',
+				operation: 'mult',
+				lhs: astMaker(mult.eq),
+				rhs: astMaker(mult.remainder)
+			} satisfies AstMult
+		}
+	}
+
+	const pow = findNextNotInBracket(eq, ['^'])
+	if (pow !== null) {
+		return {
+			name: 'pow',
+			operation: 'pow',
+			lhs: astMaker(pow.eq),
+			rhs: astMaker(pow.remainder)
+		} satisfies AstPow
+	}
+
+	const parenthesis = findNextNotInBracket(eq, ['('])
+	if (parenthesis !== null) {
+		const beforeOpenParenthesis = parenthesis.eq
+
+		// Find close parenthesis
+		const next = findNextNotInBracket(parenthesis.remainder, [')'])
+		if (next === null) throw new Error(`Close parenthesis not found in '${eq}'`)
+
+		const inParanthesis = next.eq
+
+		const afterParenthesis = next.remainder
+		// console.log({ beforeOpenParenthesis, inParanthesis, afterParenthesis })
+
+		if (afterParenthesis.length)
+			throw new Error('There should be some kind of modifier after paranthesis - or nothing')
+		if (beforeOpenParenthesis.length) {
+			// We're a function, parse args!
+
+			const commaList = splitAllNotInBrackets(inParanthesis, ',')
+			const commaNodes: AstNode[] = commaList.map((insideComma) => astMaker(insideComma))
+			const fnArgs: AstComma = {
+				name: 'comma',
+				separator: 'comma',
+				list: commaNodes
+			}
+			// Amount of preceeding negative signs
+			const negatives = /\-+/.exec(beforeOpenParenthesis)?.[0]?.length || 0
+			const negative = !!(negatives % 2) // Is odd
+			const func = beforeOpenParenthesis.slice(negatives)
+
+			return {
+				name: 'function',
+				function: func,
+				negative,
+				args: fnArgs
+			} satisfies AstFunction
+		} else {
+			// We're not a function, just brackets
+			return astMaker(inParanthesis)
+		}
+	}
+
+	const bracket = findNextNotInBracket(eq, ['['])
+	if (bracket !== null) {
+		const beforeBracket = bracket.eq
+		if (beforeBracket.length) throw new Error(`Can't have that before the [ opening in '${eq}'`)
+		// First we find the closing bracket
+		const bracketReturn = findNextNotInBracket(bracket.remainder, [']'])
+		if (bracketReturn === null)
+			throw new Error(
+				`Attempted to find ] in '${bracket.remainder}' but it was not found outside of other brackets`
+			)
+		const insideBracket = bracketReturn.eq
+		const afterBracket = bracketReturn.remainder
+		if (afterBracket.length)
+			throw new Error(`Illegal character after the closing bracket ] in '${bracket.remainder}'`)
+		return bracketBreaker(insideBracket)
+	}
+
+	// Amount of preceeding negative signs
+	const negatives = /\-+/.exec(eq)?.[0]?.length || 0
+	const negative = !!(negatives % 2) // Is odd
+	const token = eq.slice(negatives)
+
+	return {
+		name: 'token',
+		token,
+		negative
+	} satisfies AstToken
 }
 
 /**
- * We receive something like `3,4,5] + ...`
- * We need to find the "]" closing bracket and then
+ * We receive something like `3,4,5`
+ * assuming already checked for whats around the brackets
  * return the pointer to where it left off
  * @param eq
  */
-function bracketBreaker(eq: string): { node: AstBracket; len: number } {
-	const splitSemis: string[] = []
-	let latestSemi = ''
-	let bracketLayerDepth = 0
-	let closingBracketIndex: undefined | number = undefined
+function bracketBreaker(eq: string): AstBracket {
+	// const splitSemis: string[] = []
+	// let latestSemi = ''
+	// let bracketLayerDepth = 0
+	// let closingBracketIndex: undefined | number = undefined
 	// We aren't wanting to do any processing here
 	// actually, we just want to split up the semis
 	// and commas
-	for (let i = 0; i < eq.length; i++) {
-		const char = eq[i]
-		// restOfEquation = eq.slice(i + 1)
-		const symbolised = symbolList.get(char)
-		if (symbolised === undefined) {
-			latestSemi += char
-		} else {
-			if (symbolised.type === 'wrap') {
-				if (symbolised.name === 'bracket') {
-					if (symbolised.symbols[0] === char) {
-						bracketLayerDepth++
-					} else {
-						// Closing bracket
-						if (bracketLayerDepth === 0) {
-							if (latestSemi.length) splitSemis.push(latestSemi)
-							closingBracketIndex = i + 1
-							break
-						}
-						bracketLayerDepth--
-					}
-				}
-				latestSemi += char
-				// We actually don't care about parenthesis because
-				// they'll just throw an error if they're mis-aligned anyway
-			} else if (symbolised.name === 'semicolon') {
-				splitSemis.push(latestSemi)
-				latestSemi = ''
-			} else {
-				latestSemi += char
-			}
-		}
-	}
 
-	console.log(splitSemis)
-
-	if (closingBracketIndex === undefined) throw new Error(`No closing bracket found ]`)
-	if (splitSemis.length === 0)
-		throw new Error(`We found a closing bracket but there were no entries`)
-
-	const nodes = splitSemis.map((eq) => {
-		console.log({ eq })
-		const splitCommas: string[] = []
-		let latestComma = ''
-		let bracketLayerDepth = 0
-		for (let i = 0; i < eq.length; i++) {
-			const char = eq[i]
-			// restOfEquation = eq.slice(i + 1)
-			const symbolised = symbolList.get(char)
-			if (symbolised === undefined) {
-				latestComma += char
-			} else {
-				if (symbolised.type === 'wrap') {
-					if (symbolised.name === 'bracket') {
-						if (symbolised.symbols[0] === char) {
-							bracketLayerDepth++
-						} else {
-							bracketLayerDepth--
-						}
-					}
-					latestComma += char
-					// We actually don't care about parenthesis because
-					// they'll just throw an error if they're mis-aligned anyway
-				} else if (symbolised.name === 'comma') {
-					if (bracketLayerDepth === 0) {
-						splitCommas.push(latestComma)
-						latestComma = ''
-					} else {
-                        latestComma += char
-                    }
-				} else {
-					latestComma += char
-				}
-			}
-		}
-        if (latestComma.length) splitCommas.push(latestComma)
-		if (splitCommas.length === 0)
-			throw new Error(`We reached the end of the line but did not find the ending bracket ]`)
+	const semiSplit = splitAllNotInBrackets(eq, ';').map((semi) => {
+		// Semi is essentially between two semicolons, expected separator ,
+		// Should return a comma list
+		const commaSplit = splitAllNotInBrackets(semi, ',')
 		return {
-			list: splitCommas.map(astMaker),
-			separator: 'comma',
-			name: 'comma'
+			list: commaSplit.map(astMaker),
+			name: 'comma',
+			separator: 'comma'
 		} satisfies AstComma
 	})
 
-	const semicolonList = { name: 'semicolon', separator: 'semicolon', list: nodes } satisfies AstSemi
+	const semiReturn: AstSemi = {
+		list: semiSplit,
+		name: 'semicolon',
+		separator: 'semicolon'
+	}
 
-	const inner: AstSemi | AstComma = nodes.length === 1 ? nodes[0] : semicolonList
-
+	if (semiReturn.list.length === 0) throw new Error(`Nothing in semicolon list`)
 	const node: AstBracket = {
-		name: 'bracket',
+		inner: semiReturn.list.length > 1 ? semiReturn : semiReturn.list[0],
 		container: 'bracket',
-		inner
+		name: 'bracket'
 	}
-
-	return {
-		node,
-		len: closingBracketIndex
-	}
+	return node
 }
 
-function findNextNotInBracket(eq : string, target : string[]) : {eq: string, char : string, remainder : string} {
-    let paranthesisDepth = 0
-    let bracketDepth = 0
-    let acc = ""
-    for (let index = 0; index < eq.length; index++) {
-        const char = eq[index];
-        const symbolised = symbolList.get(char)
-        if (target.includes(char)) {
-            if (paranthesisDepth === 0 && bracketDepth === 0) {
-                return {
-                    eq: acc,
-                    char,
-                    remainder : eq.slice(index)
-                }
-            }
-        }
-        acc += char
-        if (symbolised?.type === "wrap") {
-            if (symbolised.name === "bracket") {
-                if (char === symbolised.symbols[0]) {
-                    bracketDepth++
-                } else {
-                    bracketDepth--
-                }
-            } else if (symbolised.name === "parenthesis") {
-                if (char === symbolised.symbols[0]) {
-                    paranthesisDepth++
-                } else {
-                    paranthesisDepth--
-                }
-            }
-        }
-    }
-    throw new Error(`Reached end of ${eq} but did not find ${target.join()} (outside of brackets / parentheses)`)
+function findNextNotInBracket(
+	eq: string,
+	target: string[]
+): { eq: string; char: string; remainder: string } | null {
+	let paranthesisDepth = 0
+	let bracketDepth = 0
+	let acc = ''
+	for (let index = 0; index < eq.length; index++) {
+		const char = eq[index]
+		const symbolised = symbolList.get(char)
+		if (target.includes(char)) {
+			if (paranthesisDepth === 0 && bracketDepth === 0) {
+				const rtn = {
+					eq: acc,
+					char,
+					remainder: eq.slice(index + 1)
+				}
+				return rtn
+			}
+		}
+		acc += char
+		if (symbolised?.type === 'wrap') {
+			if (symbolised.name === 'bracket') {
+				if (char === symbolised.symbols[0]) {
+					bracketDepth++
+				} else {
+					bracketDepth--
+				}
+			} else if (symbolised.name === 'parenthesis') {
+				if (char === symbolised.symbols[0]) {
+					paranthesisDepth++
+				} else {
+					paranthesisDepth--
+				}
+			}
+		}
+	}
+	if (paranthesisDepth || bracketDepth)
+		throw new Error(
+			`Reached end of ${eq} but brackets were not closed properly, parantheses open depth ${paranthesisDepth}, bracket open depth ${bracketDepth}`
+		)
+	return null
+}
+
+/**
+ * Only do use this if you know you're
+ * going to use all of eq for a fact
+ */
+function splitAllNotInBrackets(eq: string, char: string): string[] {
+	const first = findNextNotInBracket(eq, [char])
+	if (first === null) {
+		return [eq]
+	} else {
+		return [first.eq, ...splitAllNotInBrackets(first.remainder, char)]
+	}
 }

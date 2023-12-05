@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Vec } from '$lib/calculations'
+	import { Vec } from '$lib/calculations'
 	import { T } from '@threlte/core'
 	import { MeshLineGeometry, MeshLineMaterial, Text } from '@threlte/extras'
 	import { Vector3, type ColorRepresentation, AdditiveBlending, Texture,  } from 'three'
@@ -14,7 +14,7 @@
 </script>
 
 {#if text.length}
-	<Text position={points[1].toRealArray()} {fontSize} anchorX={'center'} anchorY={'bottom'} {text} {color}  />
+	<Text position={points[1].add(Vec.fromNumberArray([0,0.06,0])).toRealArray()} {fontSize} anchorX={'center'} anchorY={'bottom'} {text} {color}  />
 {/if}
 <T.Mesh>
 	<MeshLineGeometry points={points.map((p) => new Vector3(...p.toRealArray()))} />

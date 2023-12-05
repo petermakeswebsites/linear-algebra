@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { T } from '@threlte/core'
-	import { MeshLineGeometry, MeshLineMaterial } from '@threlte/extras'
 	import type { Texture } from 'three'
 	import Line from './helpers/Line.svelte'
 	import { times } from 'lodash-es'
 	import { Matrix, Vec } from '$lib/calculations'
 	import { Num } from '$lib/complex'
+	import { twoD } from '$lib/2d'
 
 	export let size = 20
 	export let spacing = 1
@@ -19,7 +19,7 @@
 
 	function processLines() {
 		const lines: [Vec, Vec][] = []
-		for (let i = 0; i < size; i++) {
+		for (let i = 0; i <= size; i++) {
 			const start = 0 - size / 2
 			const end = 0 + size / 2
 			if (plane === 'ij') {
@@ -65,7 +65,7 @@
 </script>
 
 {#each transformedLines as verticalLine}
-	<Line {alphaMap} points={verticalLine} {color} width={0.01} {opacity} />
+	<Line {alphaMap} points={verticalLine} {color} width={0.01} opacity={opacity} />
 {/each}
 <!-- <T.Mesh>
 	<MeshLineGeometry  />

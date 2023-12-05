@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { T } from '@threlte/core'
-	import { Grid } from '@threlte/extras'
 	import { BoxGeometry, BufferAttribute, BufferGeometry, PlaneGeometry } from 'three'
 	const geometry = new PlaneGeometry(20,20)
 	const vertices = geometry.getAttribute('position').array
@@ -45,7 +44,7 @@
 	fadeDistance={25}
 	cellSize={1}
 /> -->
-<Grid
+<!-- <Grid
 	position.y={0}
 	cellColor="#ff00ff"
 	sectionColor="#ff00ff"
@@ -54,4 +53,4 @@
 	cellSize={1}
 >
 	<T is={geometry} />
-</Grid>
+</Grid> -->
