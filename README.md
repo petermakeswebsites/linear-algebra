@@ -45,8 +45,4 @@ Contributions are welcome! If you have suggestions for improvements or want to c
 
 ## License
 
-(Include license information here, e.g., MIT, GPL, etc.)
-
----
-
-Make sure to customize the installation instructions, usage examples, and license information according to your project's specifics.
+MIT Licensed
