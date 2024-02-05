@@ -340,14 +340,18 @@ function evalAdd(left: Vec | Matrix | Num, right: Vec | Matrix | Num): Vec | Mat
 		// Flip around, it's legal for addition
 		return evalAdd(right, left)
 	} else if (left instanceof Num) {
-		return right.scale(left)
+		if (right instanceof Num) {
+			return right.add(left)
+		} else {
+			throw new Error(`Cannot add a number to a matrix. ${right.square ? `Consider multiplying the number by the identity matrix identity(${right.cols})` : ''}`)
+		}
 	} else if (left instanceof Matrix) {
 		if (right instanceof Matrix) {
 			if (!left.sameDimensionsAs(right))
-				throw new Error(`Cannot multiply ${left.size} matrix with ${right.size} matrix`)
+				throw new Error(`Cannot add ${left.size} matrix with ${right.size} matrix`)
 			return left.add(right)
 		} else if (right instanceof Num) {
-			return left.scale(right)
+			throw new Error(`Cannot add a number to a matrix. ${left.square ? `Consider multiplying the number by the identity matrix identity(${left.cols})` : ''}`)
 		} else {
 			throw new Error('Tried to add. Left was a matrix, but right was neither matrix nor number!')
 		}

@@ -1,13 +1,9 @@
 import { Matrix, Vec, dot } from './calculations'
 import { Num } from './complex'
-import { ConsoleEigenvector, consoleAdd } from './console'
+import { ConsoleDeterminant, ConsoleEigenvector, ConsoleValue, consoleAdd } from './console'
 import type { AstFunction } from './equations-ast'
 import { Eigenvalue } from './equations-extras'
 import { eigenvectors } from './matrix-calcs'
-
-const functions = {
-	abs: {}
-} satisfies Record<string, {}>
 
 function selectFunction(name: string, args: (Matrix | Vec | Num)[]): Matrix | Vec | Num {
 	if (name === 'abs') {
@@ -42,7 +38,16 @@ function selectFunction(name: string, args: (Matrix | Vec | Num)[]): Matrix | Ve
 		return generateFunction<typeof allowed, Vec>('normal', allowed, (vec) => vec.normal, args)
 	} else if (name === 'det') {
 		const allowed = [[Matrix]] as const
-		return generateFunction<typeof allowed, Num>('normal', allowed, (mtx) => mtx.determinant, args)
+		return generateFunction<typeof allowed, Num>(
+			'normal',
+			allowed,
+			(mtx) => {
+				const det = mtx.determinant
+				consoleAdd(new ConsoleDeterminant(mtx, det))
+				return det
+			},
+			args
+		)
 	} else if (name === 'eigenvectors') {
 		const allowed = [[Matrix]] as const
 		return generateFunction<typeof allowed, Matrix>(
@@ -66,6 +71,17 @@ function selectFunction(name: string, args: (Matrix | Vec | Num)[]): Matrix | Ve
 				} else {
 					return vecOrMatrix.toMatrix().transpose
 				}
+			},
+			args
+		)
+	} else if (name === 'log') {
+		const allowed = [[Matrix, Vec, Num]] as const
+		return generateFunction<typeof allowed, Matrix | Vec | Num>(
+			'log',
+			allowed,
+			(item) => {
+				consoleAdd(new ConsoleValue(item))
+				return item
 			},
 			args
 		)
@@ -100,10 +116,10 @@ function selectFunction(name: string, args: (Matrix | Vec | Num)[]): Matrix | Ve
 			(vec, vec2) => dot(vec, vec2),
 			args
 		)
-	} else if (name === 'I') {
+	} else if (name === 'identity') {
 		const allowed = [[Num]] as const
 		return generateFunction<typeof allowed, Matrix>(
-			'I',
+			'identity',
 			allowed,
 			(num) => Matrix.identity(num.re),
 			args

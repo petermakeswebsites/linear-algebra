@@ -15,7 +15,7 @@
 </script>
 
 <h2 class="text-lg">Global Matrix Modifier</h2>
-Transition: <br />
+Transition:<br />
 <input
 	type="range"
 	min="0"
@@ -28,23 +28,23 @@ Transition: <br />
 {#if $GlobalTransformShift === 0}
 	<span class="text-red-400"> Matrix transform not displayed because transition is 0 </span> <br />
 {/if}
-{#each numbers as number, i}
-	<input
-		class="appearance-none bg-transparent inline-block w-5"
-		value={number}
-		on:change={(evt) => {
-			const num = +evt.target.value
-			GlobalTransformMatrix.update((matrix) => {
-				const d = matrix.transpose.setNumberInArray(i, num).transpose
-				return d
-			})
-		}}
-	/>
-	...
-	{#if i % 3 === 2}
-		<br />
-	{/if}
-{/each}
+<div class="grid-cols-3 grid justify-center items-center text-center w-1/2 mx-auto mt-2">
+	{#each numbers as number, i}
+		<div class="flex justify-center w-full">
+			<input
+				class="appearance-none bg-transparent inline-block w-5"
+				value={number}
+				on:change={(evt) => {
+					const num = +evt.target.value
+					GlobalTransformMatrix.update((matrix) => {
+						const d = matrix.transpose.setNumberInArray(i, num).transpose
+						return d
+					})
+				}}
+			/>
+		</div>
+	{/each}
+</div>
 {#if $globalMatrixIsBeingOveridden}<span class="text-red-400"
 		>Matrix is being overridden in scripts</span
 	>{/if}

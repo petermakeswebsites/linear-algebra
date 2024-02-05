@@ -1,6 +1,6 @@
 import Color from "color"
 const ratio = 0.618033988749895
-let hue = 0
+
 export function colorFromString(id: string, saturation = 0.5, value = 0.5) {
 	let newHue = ratio * [...id].reduce((prev, current) => current.charCodeAt(0) + prev, 0)
 	newHue %= 1

@@ -1,29 +1,23 @@
 import { round } from 'lodash-es'
-import { Matrix } from './calculations'
-function roundSmallToZero(value: number) {
-	return (Math.abs(value) < Number.EPSILON) ? 0 :value
-}
 
-function roundToNearestEpsilon(val : number) {
+function roundToNearestEpsilon(val: number) {
 	const rounded = round(val, 0.1)
 	const difference = Math.abs(val - rounded)
-	return (Math.abs(difference) < Number.EPSILON) ? rounded : val
+	return Math.abs(difference) < Number.EPSILON ? rounded : val
 }
 
 export class Num {
 	constructor(public readonly re: number = 0, public readonly im = 0) {
-        this.re = roundToNearestEpsilon(re)
-        this.im = roundToNearestEpsilon(im)
-    }
+		this.re = roundToNearestEpsilon(re)
+		this.im = roundToNearestEpsilon(im)
+	}
 
 	sub(num: Num) {
 		return new Num(this.re - num.re, this.im - num.im)
 	}
 
-	sanitised(num : Num) {
-		return new Num(
-			num.re
-		)
+	sanitised(num: Num) {
+		return new Num(num.re)
 	}
 
 	get isNegative() {
@@ -52,7 +46,7 @@ export class Num {
 		return new Num(this.re - num.re, this.im - num.im)
 	}
 
-	divideBy(num : Num) {
+	divideBy(num: Num) {
 		return this.times(num.inverse)
 	}
 
@@ -60,8 +54,10 @@ export class Num {
 		return new Num(this.re, -this.im)
 	}
 
-	toString() {
-		return this.im === 0 ? this.re : `${this.re} + ${this.im}i`
+	toString(precision = 2) {
+		return this.im === 0
+			? round(this.re, precision)
+			: `${round(this.re, precision)} + ${round(this.im, precision)}i`
 	}
 
 	print() {
@@ -78,9 +74,11 @@ export class Num {
 		return this.re === comparitor.re && this.im === comparitor.im
 	}
 
-	equalToTolerance(num : Num | number, tolerance = Number.EPSILON) {
+	equalToTolerance(num: Num | number, tolerance = Number.EPSILON) {
 		const comparitor = Num.Create(num)
-		return Math.abs(this.re - comparitor.re) < tolerance && Math.abs(this.im - comparitor.im) < tolerance
+		return (
+			Math.abs(this.re - comparitor.re) < tolerance && Math.abs(this.im - comparitor.im) < tolerance
+		)
 	}
 
 	get isReal() {
@@ -161,7 +159,7 @@ export function sum(...args: Num[]) {
 	return new Num(accre, accim)
 }
 
-export function quadraticRoots(a : Num, b : Num, c : Num) : [Num, Num] {
+export function quadraticRoots(a: Num, b: Num, c: Num): [Num, Num] {
 	if (a.equalTo(0)) throw new Error(`Quadratic formula requires non-zero 'a' value`)
 	const discriminant = b.squared.minus(Num.Create(4).times(a.times(c)))
 	const minusB = b.scale(-1)
@@ -169,6 +167,95 @@ export function quadraticRoots(a : Num, b : Num, c : Num) : [Num, Num] {
 	const secondRoot = minusB.minus(discriminant.root).divideBy(a.scale(2))
 	return [firstRoot, secondRoot]
 }
+
+// export function cubicRoots(a : Num, b : Num, c : Num, d : Num) : [Num, Num, Num] {
+// 	const A = complex(a.re, a.im)
+// 	const B = complex(b.re, b.im)
+// 	const C = complex(c.re, c.im)
+// 	const D = complex(d.re, d.im)
+
+// 	const b3over27a3 = divide(multiply(pow(B, 3), -1), multiply(27, pow(A, 3)))
+// 	const bcover6a2 = divide(multiply(B,C), multiply(6, pow(A, 2)))
+// 	const dover2a = divide(D, multiply(2, A))
+
+// 	const mainPart = subtract(add(b3over27a3, bcover6a2), dover2a)
+
+// 	const cover3a = divide(C, multiply(3, A))
+// 	const b2over9a2 = divide(pow(B,2), multiply(9, pow(A,2)))
+
+// 	const smallerPart = subtract(cover3a, b2over9a2)
+
+// 	const innerRoot = nthRoots(add(pow(mainPart,2), pow(smallerPart, 3)) as Complex,2)
+
+// 	const firstLine = nthRoots(add(mainPart,  innerRoot) as Complex, 3)
+// 	const secondLine = nthRoots(subtract(mainPart,  innerRoot) as Complex, 3)
+// 	const bover3a = divide(B, multiply(3, A))
+
+// 	const final = subtract(add(firstLine, secondLine), bover3a)
+// 	console.log(final)
+// }
+
+// // @ts-ignore
+// globalThis.cubicRoots = cubicRoots
+
+export function factorial(n: number) {
+	if (n == 0) return 1
+	let acc = n
+	while (n > 1) {
+		n--
+		acc = acc * n
+	}
+	return acc
+}
+
+// exp
+// export function exp(x : Num, iterations = 5) {
+// 	let sum = Num.Zero()
+// 	let n = 0
+// 	while (n < iterations) {
+// 		const fac = new Num(factorial(n))
+// 		const numerator = x.pow(n)
+// 		sum = sum.add(numerator.divideBy(fac))
+// 		n++
+// 	}
+// 	return sum
+// }
+
+// export function mexp(x : Num, iterations = 15) : Num {
+// 	const mx = complex(0, pi*8)
+// 	let sum = complex(0)
+// 	let n = 0
+
+// 	while (n < iterations) {
+// 		const fac = factorial(n)
+// 		const numerator = pow(mx, complex(n))
+// 		sum = add(sum, divide(numerator, complex(fac, 0))) as Complex
+// 		n++
+// 	}
+// 	return new Num(sum.re,sum.im)
+// }
+
+// export function ln(x : Num, iterations = 5) {
+// 	let sum = Num.Zero()
+// 	let n = 0
+// 	while (n < iterations) {
+// 		const fac = Comfactorial(n))
+// 		const numerator = x.pow(n)
+// 		sum = sum.add(numerator.divideBy(numerator, fac))
+// 		n++
+// 	}
+// 	return sum
+// }
+
+// @ts-ignore
+// globalThis.pi = pi
+
+//@ts-ignore
+// globalThis.complex = complex
+//@ts-ignore
+// globalThis.exp = exp
+//@ts-ignore
+// globalThis.factorial = factorial
 
 // @ts-ignore
 globalThis.Num = Num

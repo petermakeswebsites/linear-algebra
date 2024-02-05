@@ -16,7 +16,7 @@ gradient.addColorStop(1, 'black')
 context.fillStyle = gradient
 context.fillRect(0, 0, canvas.width, canvas.height)
 
-document.body.appendChild(canvas)
+// document.body.appendChild(canvas)
 
 // Step 3: Create the texture
 export const fadedTexture = new Texture(canvas);

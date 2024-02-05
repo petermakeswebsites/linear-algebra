@@ -1,6 +1,6 @@
 <script>
 	import { twoD } from '$lib/2d'
-	import { isChanging } from '$lib/isChanging'
+	import { isChanging } from '$lib/is-changing'
 	import { T } from '@threlte/core'
 	import { OrbitControls } from '@threlte/extras'
 	import { zipWith } from 'lodash-es'
