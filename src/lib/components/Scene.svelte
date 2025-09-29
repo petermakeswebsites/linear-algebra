@@ -19,6 +19,7 @@
 	import { onMount } from 'svelte'
 	import { eqResults } from '$lib/equations'
 	import Camera from './Camera.svelte'
+	import Field2D from './overlay/Field2D.svelte'
 
 	const { autoRenderTask, scheduler, advance, scene } = useThrelte()
 
@@ -60,5 +61,5 @@
 <TriGrid opacity={0.2} />
 <!-- <Planes /> -->
 <UnitVectors opacity={0.2} grayscale />
-
+<Field2D />
 <UnitVectors transform={$GlobalTweenedMatrix} />

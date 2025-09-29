@@ -169,10 +169,6 @@ export function quadraticRoots(a: Num, b: Num, c: Num): [Num, Num] {
 }
 
 // export function cubicRoots(a : Num, b : Num, c : Num, d : Num) : [Num, Num, Num] {
-// 	const A = complex(a.re, a.im)
-// 	const B = complex(b.re, b.im)
-// 	const C = complex(c.re, c.im)
-// 	const D = complex(d.re, d.im)
 
 // 	const b3over27a3 = divide(multiply(pow(B, 3), -1), multiply(27, pow(A, 3)))
 // 	const bcover6a2 = divide(multiply(B,C), multiply(6, pow(A, 2)))
@@ -195,7 +191,7 @@ export function quadraticRoots(a: Num, b: Num, c: Num): [Num, Num] {
 // 	console.log(final)
 // }
 
-// // @ts-ignore
+// @ts-ignore
 // globalThis.cubicRoots = cubicRoots
 
 export function factorial(n: number) {
