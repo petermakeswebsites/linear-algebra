@@ -16,7 +16,7 @@ The Linear Algebra Visualiser is a tool designed to help understand and visualis
 
 ## Usage
 
-Either go to [math.pmw.ltd](https://math.pmw.ltd) or clone the repository to your local machine.
+Either go to [https://math.petermakeswebsites.co.uk](https://math.petermakeswebsites.co.uk) or clone the repository to your local machine.
 
 The visualiser supports scripting to define variables, vectors, matrices, and perform various linear algebra operations. Here's how you can use it:
 
