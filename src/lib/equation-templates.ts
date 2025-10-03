@@ -15,7 +15,7 @@ G = M
 
 ####
 # Add a random vector
-v = [2,1]
+# v = [2,1]
 
 ####
 # Check eigenvectors - only works 2x2 for now
